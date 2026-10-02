@@ -273,15 +273,15 @@ test: $(CLI_BIN) $(TEST_BINS)
 	      esac; \
 	  done; echo "  3 malformed stop lists refused, each for the right reason"
 	@echo "== numeric CLI contract =="; \
-	  for bad in "--ids 4294967296" "--ids 9999999999999999999999" "--layers 1junk" "--layers 9999999999999999999999"; do \
+	  for bad in "--ids 4294967296" "--ids 9999999999999999999999" "--layers 1junk" "--layers 9999999999999999999999" "--threads 8x" "--threads 0"; do \
 	      out=$$(./$(CLI_BIN) $(FIXTURES)/st --config $(FIXTURES)/cfg/flat.json $$bad 2>&1); rc=$$?; \
 	      test $$rc -eq 2 || { echo "  k3 $$bad returned $$rc, expected 2"; exit 1; }; \
-	      case "$$out" in *--ids*|*--layers*) ;; \
+	      case "$$out" in *--ids*|*--layers*|*--threads*) ;; \
 	          *) echo "  '$$bad' was refused, but not because of its number:"; \
 	             echo "      $$out"; \
 	             echo "  asserting only the exit code would pass on the loader's error"; exit 1;; \
 	      esac; \
-	  done; echo "  4 malformed numerics refused, each for the right reason"
+	  done; echo "  6 malformed numerics refused, each for the right reason"
 	@echo "== op kernels ==";        ./$(BIN)/test_ops $(FIXTURES)/ops
 	@echo "== streaming cache ==";   ./$(BIN)/test_cache $(FIXTURES)/cache
 	@echo "== safetensors ==";       ./$(BIN)/test_st $(FIXTURES)/st $(BUILD)/st_index.json \
