@@ -5,8 +5,26 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-02
+
+Chat, native Windows builds alongside Linux and macOS, an 8 GB class mode for the
+complete model, NEON kernels for ARM, and a round of hardening on everything that parses
+checkpoint files. Output is unchanged wherever it was already defined: every oracle gate
+still matches the reference exactly.
+
+One compatibility note: `--save-state` files move to version 2, with a checksum. A
+version 1 file is refused with a clear message rather than read; regenerate it with
+`--gen 0 --incremental --save-state`.
+
 ### Added
 
+- **`--preset ultra` and `--ultra-low-memory`**: the complete 93 layer model inside an
+  8 GB class memory budget, by streaming exact embedding rows and bounded lm_head chunks
+  and reusing one recurrent state slot. Same weights, same top-16 routing, same kernels.
+  Verified with four full runs on a Jetson Orin Nano Super against the released
+  checkpoint, identical ids and identical logits each time. Slow, by design.
+- **NEON kernels on aarch64** for the bf16, MXFP4 and q8 matmuls, so Apple Silicon and
+  ARM servers are no longer scalar only. Bit identical to the scalar path.
 - **`--chat`**: a terminal REPL implementing K3's official XTML chat format, message
   envelopes, the `thinking_effort` system preamble, and `reasoning_content` on prior
   assistant turns, rendered exactly as the checkpoint's own encoder does, with JSONL
@@ -62,6 +80,9 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The MXFP4 expert matmul is about 1.6x faster**, decoding nibbles in register, plus
+  another 1.56x from a flat-row AVX2 path when the group is a multiple of 16. Bit
+  identical, checked against the kernel hashes before and after.
 - **Expert reads are split into 1 MiB chunks**, so a batch of reads no longer waits on its
   slowest expert. Output is unchanged.
 - **Trunk layers are read in parallel chunks.** `load_run()` streamed each layer with
@@ -78,6 +99,14 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **macOS could not read the embedding table or a packed trunk layer.** Darwin's pread
+  refuses a single request of 2 GiB or more, and both exceed it; reads are now chunked.
+  The download script also works on macOS and with current huggingface_hub releases.
+- **CMake on Apple Silicon and on macOS.** The ARM64 build was handed x86 flags, and the
+  macOS build silently came out single threaded because CMake could not find Homebrew's
+  libomp. Both are fixed.
+- **`k3_matmul_mxfp4` now enforces its documented preconditions.** An odd input width or a
+  group above 64 aborts with a message instead of writing past the caller's buffer.
 - **`--preset auto` refused itself on large machines.** It planned to 98% of available
   memory while admission allowed 95%, so from about 100 GB of RAM upward the recommended
   preset could never start, and the refusal printed a negative shortfall. One constant
@@ -228,6 +257,7 @@ First public release.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-[Unreleased]: https://github.com/FareedKhan-dev/kimi-k3-in-c/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/FareedKhan-dev/kimi-k3-in-c/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/FareedKhan-dev/kimi-k3-in-c/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/FareedKhan-dev/kimi-k3-in-c/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/FareedKhan-dev/kimi-k3-in-c/releases/tag/v0.1.0
