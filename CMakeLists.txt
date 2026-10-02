@@ -176,6 +176,10 @@ set(FIX ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures)
 # the other silently gives ctest less coverage than `make test`.
 add_test(NAME ops        COMMAND test_ops   ${FIX}/ops)
 add_test(NAME cache      COMMAND test_cache ${FIX}/cache)
+# The fixture's experts are a few KB, so the default 1 MiB chunk never splits a read and
+# the chunked path would ship untested. A 4 KiB chunk splits sixteen of them.
+add_test(NAME cache_split_reads COMMAND test_cache ${FIX}/cache)
+set_tests_properties(cache_split_reads PROPERTIES ENVIRONMENT "K3_EXPERT_CHUNK=4096")
 add_test(NAME config     COMMAND test_cfg   fixture ${FIX}/ref_k3.json)
 add_test(NAME interrupt   COMMAND test_cancel)
 add_test(NAME memory_probe COMMAND test_sysmem)

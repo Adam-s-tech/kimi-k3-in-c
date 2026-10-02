@@ -284,6 +284,7 @@ test: $(CLI_BIN) $(TEST_BINS)
 	  done; echo "  6 malformed numerics refused, each for the right reason"
 	@echo "== op kernels ==";        ./$(BIN)/test_ops $(FIXTURES)/ops
 	@echo "== streaming cache ==";   ./$(BIN)/test_cache $(FIXTURES)/cache
+	@echo "== streaming cache, split reads =="; K3_EXPERT_CHUNK=4096 ./$(BIN)/test_cache $(FIXTURES)/cache
 	@echo "== safetensors ==";       ./$(BIN)/test_st $(FIXTURES)/st $(BUILD)/st_index.json \
 	    plain.f32.2d plain.bf16.1d tricky.f16.1d packed.u8.2d scalar.f32 second.shard.f32
 	@echo "== model streaming ==";   ./$(BIN)/test_model_stream $(FIXTURES)/st

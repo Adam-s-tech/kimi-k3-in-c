@@ -266,6 +266,9 @@ jobs:
             ./bin/test_cfg reject "tests/fixtures/cfg/$f.json"
           done
           ./bin/test_cache tests/fixtures/cache
+          # Split expert reads: the fixture's experts only take the chunked path when
+          # the chunk is smaller than the default, and that path does the offset math.
+          K3_EXPERT_CHUNK=4096 ./bin/test_cache tests/fixtures/cache
           ./bin/test_st tests/fixtures/st "$RUNNER_TEMP/idx.json" \
             plain.f32.2d plain.bf16.1d tricky.f16.1d packed.u8.2d scalar.f32 second.shard.f32
           ./bin/test_st_faults tests/fixtures/st "$RUNNER_TEMP/stfault"
