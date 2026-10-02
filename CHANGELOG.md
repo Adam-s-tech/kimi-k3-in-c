@@ -5,6 +5,17 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The trunk report counted a prefetched layer as a hit** whenever its read finished
+  before the walk bound it. On a fully streamed run of the tiny checkpoint, every one of
+  the 156 layer binds was a real read ("reads 156 against 156 the walk owes"), and the
+  line above it still said `hits 144 (92.3%), reads 12`. A layer the reader fetched
+  ahead is now charged as a read to the bind that reaches it, whichever thread gets there
+  first, so the counts no longer depend on timing and the hit rate again tracks the
+  pinned fraction. Counting only: output is unchanged. This was also the cause of an
+  intermittent `test_trunk` failure on CI, which now tests both interleavings.
+
 ## [1.1.0] - 2026-10-02
 
 Chat, native Windows builds alongside Linux and macOS, an 8 GB class mode for the

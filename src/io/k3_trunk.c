@@ -62,6 +62,7 @@ typedef struct {
     int       qslot[K3_TRUNK_MAXRING];
     int       nq;
     int       pending[K3_TRUNK_MAXRING];/* [slot] layer being read, or -1 */
+    int       fresh[K3_TRUNK_MAXRING];  /* [slot] read ahead, not yet bound */
     int       held;                     /* slot the caller is using, or -1 */
 } K3TrunkIO;
 
@@ -686,6 +687,7 @@ static int claim_slot_locked(K3Trunk *tr, K3TrunkIO *io, int L)
         tr->ring = (s + 1) % tr->nslot;
         if (tr->layer_of[s] >= 0) tr->slot_of[tr->layer_of[s]] = -1;
         tr->layer_of[s] = -1;                   /* EMPTY before the read, not after */
+        io->fresh[s] = 0;
         io->pending[s] = L;
         return s;
     }
@@ -728,9 +730,12 @@ static void *trunk_io_main(void *arg)
              * a bind that waits for a prefetch is one bind, not one miss plus one hit;
              * k3_trunk_bind owns that classification so the two always sum to the bind
              * count. Counting here as well inflated the hit rate by the prefetch rate,
-             * which is precisely the number the rate is meant to expose. */
+             * which is precisely the number the rate is meant to expose. The slot is
+             * marked fresh instead, so that bind charges this read even when it lands
+             * before the walk arrives. */
             tr->layer_of[slot] = L;
             tr->slot_of[L] = slot;
+            io->fresh[slot] = 1;
         }
         pthread_cond_broadcast(&io->cv_done);
         pthread_mutex_unlock(&io->mu);
@@ -772,14 +777,24 @@ int k3_trunk_fetch(K3Trunk *tr, int L, unsigned char **out)
         pthread_mutex_lock(&io->mu);
         io->held = -1;    /* release the previous layer's slot before asking for one */
         pthread_cond_broadcast(&io->cv_done);
-        /* Classify this bind ONCE, on the first look. Resident already means no bytes
-         * moved for it; anything else means bytes did, whether this thread read them or
-         * it waited for the reader to finish. hits + misses therefore equals the bind
-         * count, which is what makes the printed rate mean anything. */
+        /* Classify this bind ONCE, on the first look. Resident from an earlier bind
+         * means no bytes moved for it; anything else means bytes did, whether this
+         * thread read them or the reader did, before the walk arrived or after. hits +
+         * misses therefore equals the bind count, which is what makes the printed rate
+         * mean anything.
+         *
+         * `fresh` is what makes "before or after" hold. Without it a prefetch that had
+         * already landed counted as a hit and one still in flight as a miss, so the same
+         * run gave different counts depending on which thread won: test_trunk's
+         * two-slot case failed on CI whenever the reader finished first. */
         int first = 1;
         for (;;) {
             slot = tr->slot_of[L];
-            if (slot >= 0) { if (first) tr->hits++; break; }
+            if (slot >= 0) {
+                if (first) { if (io->fresh[slot]) tr->misses++; else tr->hits++; }
+                io->fresh[slot] = 0;
+                break;
+            }
             if (first) { tr->misses++; first = 0; }
             const int pend = pending_slot_locked(tr, io, L);
             if (pend >= 0) {                 /* the reader is already fetching it */

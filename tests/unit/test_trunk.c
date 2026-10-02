@@ -27,6 +27,9 @@
  *   7  REFUSAL      corrupt manifests (empty layers, negative geometry, a
  *                   tensor escaping its run) are refused at open, with
  *                   nothing left allocated behind them.
+ *   8  RACE         a prefetch that lands before the bind looks is still that
+ *                   bind's read, so the counts do not depend on which thread
+ *                   wins. They did, and §2 failed on CI when the reader won.
  *
  * usage: test_trunk
  *   writes a synthetic 3-layer trunk fixture to a temp directory, then drives
@@ -42,6 +45,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>              /* nanosleep */
 #include <unistd.h>            /* ftruncate */
 
 #include "k3.h"
@@ -421,9 +425,9 @@ static int test_two_slot(const char *dir, const K3Cfg *c)
     /* Prefetch L1 -- starts async read into slot 1 */
     k3_trunk_prefetch(&tr, 1);
 
-    /* Bind L1 -- blocks until reader finishes, publishes slot 1.
-     * The miss was recorded inside trunk_io_wait when it published the slot;
-     * k3_trunk_bind itself records a hit only on the synchronous lookup path. */
+    /* Bind L1 -- blocks until the reader finishes, if it has not already.
+     * Either way this bind is charged one miss for the read; test_landed_first
+     * forces the other interleaving and expects the same counts. */
     K3LayerBind b1; memset(&b1, 0, sizeof b1);
     if (k3_trunk_bind(&tr, c, 1, &b1) != 0) { k3_trunk_close(&tr); return 1; }
     ck(tr.hits == 0 && tr.misses == 2, "two-slot: after bind L1, misses=2", "");
@@ -473,6 +477,52 @@ static int test_two_slot(const char *dir, const K3Cfg *c)
      * L2 is MLA -- use lay.in_norm (tensor index 0, always present). */
     int dt_ok_2c = check_marker((const unsigned char *)b2.lay.in_norm, 2, 0, 64);
     ck(dt_ok_2c, "ring-wrap: L2 survives L0 rebind", "");
+
+    k3_trunk_close(&tr);
+    return 0;
+}
+
+static void nap_ms(int ms)
+{
+#ifdef _WIN32
+    Sleep((DWORD)ms);
+#else
+    struct timespec t;
+    t.tv_sec = ms / 1000;
+    t.tv_nsec = (long)(ms % 1000) * 1000000L;
+    nanosleep(&t, NULL);
+#endif
+}
+
+/* The other interleaving of §2: give the reader time to land L1 before the bind
+ * looks. The bind must still be charged the read, exactly as when it has to wait.
+ * If the reader is slower than the nap, the bind waits instead and the expected
+ * counts are the same, so this cannot fail on a slow machine, only on wrong code. */
+static int test_landed_first(const char *dir, const K3Cfg *c)
+{
+    K3Trunk tr;
+    if (k3_trunk_open(&tr, dir, c, 24576, 0) != 0) {
+        fprintf(stderr, "TRUNK OPEN FAILED (landed-first)\n"); return 1;
+    }
+    ck(tr.nslot == 2, "landed-first: ring has 2 slots", "");
+
+    int dt_ti = 18;
+    K3LayerBind b0; memset(&b0, 0, sizeof b0);
+    if (k3_trunk_bind(&tr, c, 0, &b0) != 0) { k3_trunk_close(&tr); return 1; }
+
+    k3_trunk_prefetch(&tr, 1);
+    nap_ms(200);
+
+    K3LayerBind b1; memset(&b1, 0, sizeof b1);
+    if (k3_trunk_bind(&tr, c, 1, &b1) != 0) { k3_trunk_close(&tr); return 1; }
+    ck(tr.hits == 0 && tr.misses == 2,
+       "landed-first: bind after the read landed, misses=2", "");
+    int dt_ok_1 = check_marker((const unsigned char *)b1.kda.dt_bias, 1, dt_ti, 32);
+    ck(dt_ok_1, "landed-first: bind L1 content correct", "");
+
+    /* Binding the same resident layer again moved no bytes: that one is a hit. */
+    if (k3_trunk_bind(&tr, c, 1, &b1) != 0) { k3_trunk_close(&tr); return 1; }
+    ck(tr.hits == 1 && tr.misses == 2, "landed-first: rebind L1 is a hit", "");
 
     k3_trunk_close(&tr);
     return 0;
@@ -656,6 +706,10 @@ int main(void)
 
     /* §2 two-slot budget (isolation + ring-wrap) */
     if (test_two_slot(tmpdir, &c) != 0) g_fail++;
+    printf("\n");
+
+    /* §2b two-slot, the prefetch lands before the bind looks */
+    if (test_landed_first(tmpdir, &c) != 0) g_fail++;
     printf("\n");
 
     /* §3 truncated read (fresh open) */
