@@ -1,11 +1,12 @@
 # Contributors
 
 People outside the project who have landed real fixes or features in this codebase.
-GitHub's own contributor graph misses a few of these: a handful of pull requests hit a
-merge conflict against other work landing the same day and had to be rebased by hand
-through a new pull request to get a clean CI run, which is why their code shows up in
-the history under a different name than the one that wrote it. This file is the correct
-record.
+
+GitHub's contributor list is built from commit authors. Most of the pull requests below
+were rebased and squash-merged by hand to clear conflicts with other work landing at the
+same time, and those commits went in under the maintainer's name, so that list misses
+most of the people here. This file is the correct record. Pull requests merged after
+v1.1.0 are committed under their author's name.
 
 - **[douglasmun](https://github.com/douglasmun)** -- got the engine building and
   passing the test suite on macOS / Apple Silicon.

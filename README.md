@@ -189,6 +189,8 @@ component at a time.
 - [Closing the ledger](#closing-the-ledger)
 - [Documentation](#documentation)
 - [Development](#development)
+- [Contributors](#contributors)
+- [Star history](#star-history)
 - [License](#license)
 
 ---
@@ -3498,6 +3500,48 @@ Fixtures are generated from the PyTorch reference and committed;
 [`tests/fixtures/README.md`](tests/fixtures/README.md) records what makes each one
 adversarial and how to regenerate it. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the place to
 start.
+
+## Contributors
+
+The macOS, Windows and NEON ports, chat mode, the `ultra` preset, the faster MXFP4 kernels
+and a long list of parser fixes all came from people outside the project.
+[`CONTRIBUTORS.md`](CONTRIBUTORS.md) says who did what.
+
+<p align="center">
+<a href="https://github.com/douglasmun"><img src="https://avatars.githubusercontent.com/u/12515041?v=4&s=112" width="56" height="56" alt="douglasmun" title="douglasmun"></a>
+<a href="https://github.com/cwwjacobs"><img src="https://avatars.githubusercontent.com/u/251295277?v=4&s=112" width="56" height="56" alt="cwwjacobs" title="cwwjacobs"></a>
+<a href="https://github.com/mahavak"><img src="https://avatars.githubusercontent.com/u/38126162?v=4&s=112" width="56" height="56" alt="mahavak" title="mahavak"></a>
+<a href="https://github.com/sulfierry"><img src="https://avatars.githubusercontent.com/u/22729945?v=4&s=112" width="56" height="56" alt="sulfierry" title="sulfierry"></a>
+<a href="https://github.com/Barba2k2"><img src="https://avatars.githubusercontent.com/u/67913962?v=4&s=112" width="56" height="56" alt="Barba2k2" title="Barba2k2"></a>
+<a href="https://github.com/ShaalanMarwan"><img src="https://avatars.githubusercontent.com/u/26276966?v=4&s=112" width="56" height="56" alt="ShaalanMarwan" title="ShaalanMarwan"></a>
+<a href="https://github.com/TROY665"><img src="https://avatars.githubusercontent.com/u/84645104?v=4&s=112" width="56" height="56" alt="TROY665" title="TROY665"></a>
+<a href="https://github.com/ysgao"><img src="https://avatars.githubusercontent.com/u/1692765?v=4&s=112" width="56" height="56" alt="ysgao" title="ysgao"></a>
+<a href="https://github.com/openchat-ai"><img src="https://avatars.githubusercontent.com/u/274358245?v=4&s=112" width="56" height="56" alt="openchat-ai" title="openchat-ai"></a>
+<a href="https://github.com/arafatsolok"><img src="https://avatars.githubusercontent.com/u/58647359?v=4&s=112" width="56" height="56" alt="arafatsolok" title="arafatsolok"></a>
+<br>
+<a href="https://github.com/genesisrevelationinc-debug"><img src="https://avatars.githubusercontent.com/u/243808510?v=4&s=112" width="56" height="56" alt="genesisrevelationinc-debug" title="genesisrevelationinc-debug"></a>
+<a href="https://github.com/AuricTW"><img src="https://avatars.githubusercontent.com/u/108772778?v=4&s=112" width="56" height="56" alt="AuricTW" title="AuricTW"></a>
+<a href="https://github.com/biokraft"><img src="https://avatars.githubusercontent.com/u/35855749?v=4&s=112" width="56" height="56" alt="biokraft" title="biokraft"></a>
+<a href="https://github.com/cablepull"><img src="https://avatars.githubusercontent.com/u/135179737?v=4&s=112" width="56" height="56" alt="cablepull" title="cablepull"></a>
+<a href="https://github.com/Avicennasis"><img src="https://avatars.githubusercontent.com/u/913872?v=4&s=112" width="56" height="56" alt="Avicennasis" title="Avicennasis"></a>
+<a href="https://github.com/Deobot2"><img src="https://avatars.githubusercontent.com/u/131834087?v=4&s=112" width="56" height="56" alt="Deobot2" title="Deobot2"></a>
+<a href="https://github.com/BlakeEvans22"><img src="https://avatars.githubusercontent.com/u/32441662?v=4&s=112" width="56" height="56" alt="BlakeEvans22" title="BlakeEvans22"></a>
+<a href="https://github.com/FermiHart"><img src="https://avatars.githubusercontent.com/u/100219585?v=4&s=112" width="56" height="56" alt="FermiHart" title="FermiHart"></a>
+<a href="https://github.com/santhoshsathish94"><img src="https://avatars.githubusercontent.com/u/11693712?v=4&s=112" width="56" height="56" alt="santhoshsathish94" title="santhoshsathish94"></a>
+<a href="https://github.com/Irfanwani"><img src="https://avatars.githubusercontent.com/u/62456735?v=4&s=112" width="56" height="56" alt="Irfanwani" title="Irfanwani"></a>
+</p>
+
+## Star history
+
+<p align="center">
+<a href="https://www.star-history.com/#FareedKhan-dev/kimi-k3-in-c&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=FareedKhan-dev/kimi-k3-in-c&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=FareedKhan-dev/kimi-k3-in-c&type=Date" />
+   <img alt="Star history of FareedKhan-dev/kimi-k3-in-c" src="https://api.star-history.com/svg?repos=FareedKhan-dev/kimi-k3-in-c&type=Date" />
+ </picture>
+</a>
+</p>
 
 ## License
 
