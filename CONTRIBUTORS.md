@@ -57,7 +57,11 @@ record.
   and a `rename` that actually replaces an existing file); found and fixed the missing
   OpenMP link on the CMake Apple/libomp path; largest-first trunk pinning, the
   `--trunk-ring` flag, and two prefetcher re-read bugs found by instrumentation rather
-  than by inspection.
+  than by inspection; Ctrl-C that stops at a safe point and still writes everything; a
+  checksummed state file published by atomic rename; chat turns that reuse the previous
+  turn's state behind a bit-exact gate; available memory that is real on macOS and
+  capped by commit headroom on Windows; missing-shard diagnostics that name the file; and
+  safetensors span checks validated against every shard of the released checkpoint.
 - **[Blake Evans](https://github.com/BlakeEvans22)** -- the original K3 XTML chat core
   and REPL, reproducing the checkpoint's own chat format so the engine answers a
   chat-shaped prompt instead of completing it.
@@ -68,6 +72,14 @@ record.
   allocation failure, and a new weightless fault-injection test; a batched MoE prefill
   path that read uninitialized memory on an expert load failure instead of contributing
   zero, exactly as the per-token path already does; and CLI refusals for a malformed
-  `--ids` list, an out-of-range `--layers`, and a lost `--out` file.
+  `--ids` list, an out-of-range `--layers`, and a lost `--out` file; a strict JSON parser
+  that refuses truncated input instead of reading past it; a trunk.json leak on the
+  refusal path; sampler tests that run without the tokenizer; and `--top-k` for chat.
+- **[santhoshsathish94](https://github.com/santhoshsathish94)** -- found that
+  `--preset auto` could never start on the machines it was written for and fixed it,
+  with the measurements that made the thread-count default change a clear call; split
+  expert reads so a batch no longer waits on its slowest read.
+- **[Irfanwani](https://github.com/Irfanwani)** -- the `--layers N` download mode, so the
+  pipeline can be exercised on a disk too small for the checkpoint.
 
 Thank you, all of you.

@@ -17,6 +17,22 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it were mid document rather than answering it.
 - **`--trunk-ring N`**: the streaming trunk's prefetch queue depth is now a flag
   (default 2) instead of fixed at two slots.
+- **Ctrl-C stops at a safe point.** The first Ctrl-C lets the step in flight finish,
+  then writes the state file, the `--out` JSON and the reports exactly as a finished run
+  would, and exits 5. A second Ctrl-C kills. Before, SIGINT discarded everything.
+- **Chat reuses the previous turn's state.** When the next turn's rendered prompt begins
+  with exactly the ids the carried state was built from, only the new tail is prefilled.
+  GATE 3b in the oracle requires that to be bit identical to a full prefill: logits, every
+  KV row, and the KDA state.
+- **`--top-k K`** for chat sampling, on the existing sampler. Off by default.
+- **`--threads N`**, and a default of the physical core count on Linux instead of one
+  thread per logical CPU, which measured about 23% slower per token on a 16 core SMT part.
+- **`download-model.sh <dest> --layers N`** fetches only the shards a `--layers N` run
+  needs, resolved from the Hub's own index, with a banner saying the result is not the
+  model.
+- **A missing tensor names the missing file.** The shard filenames declare the shard
+  count, so a partial download now says which file is absent instead of only which
+  tensor.
 - **`--stop-id N`** (repeatable, up to 8): generation halts as soon as the model emits
   a listed token id. Off by default, so `--gen N` still means exactly N tokens for
   every benchmark and oracle gate. The stop id stays in the sequence, so `--save-state`
@@ -46,6 +62,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Expert reads are split into 1 MiB chunks**, so a batch of reads no longer waits on its
+  slowest expert. Output is unchanged.
 - **Trunk layers are read in parallel chunks.** `load_run()` streamed each layer with
   one sequential `pread` loop, so the device saw queue depth 1. It now splits the layer
   into 64 MiB chunks (a multiple of `K3_TRUNK_ALIGN`, so every chunk stays aligned for
@@ -60,6 +78,25 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`--preset auto` refused itself on large machines.** It planned to 98% of available
+  memory while admission allowed 95%, so from about 100 GB of RAM upward the recommended
+  preset could never start, and the refusal printed a negative shortfall. One constant
+  now drives both.
+- **On macOS the available memory read as 0**, which silently switched off both memory
+  refusals. Darwin and Windows now have their own probes, and Windows also caps by the
+  remaining commit limit.
+- **A state file could be wrong without the loader noticing.** One flipped byte restored
+  cleanly, and a save that failed partway destroyed the previous good file. The payload
+  is now checksummed and the file published by an atomic rename. State files move to
+  version 2; a version 1 file is refused rather than guessed at.
+- **Safetensors headers whose tensor spans overlap or leave a gap** were read without
+  complaint, shifting every tensor after them. They are refused now, the same rule the
+  reference loader applies; all 96 shards of the released checkpoint pass it.
+- **The JSON parser read past the end of a truncated string** and accepted incomplete
+  documents. Both are refusals now. Every JSON file the engine reads from the released
+  checkpoint parses to the same tree as before.
+- **A refused trunk.json leaked its whole parse tree**, and `--ids` values past the int
+  range wrapped to a real token id.
 - **Hostile or corrupt safetensors, trunk, and config input could reach undefined
   behavior instead of a refusal.** Integer overflow in shape and offset arithmetic
   (a hostile shape or `data_offsets` pair near `INT64_MAX` could wrap and defeat the

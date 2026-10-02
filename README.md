@@ -405,6 +405,8 @@ printf 'La capitale de la France est' > /tmp/p.txt
 | `--trunk` | `DIR` | off | the packed trunk directory from step 5. **This is what enables streaming.** Without it the trunk loads fully resident, around 113.5 GB |
 | `--trunk-gb` | `X` | 16 | budget for pinned layers plus the streaming ring |
 | `--cache-gb` | `X` | 64 | budget for the routed-expert LRU cache |
+| `--trunk-ring` | `N` | 2 | streaming ring slots: one layer being computed on, the rest reads in flight. Each extra slot costs one slot of RAM, and the budget still wins if it does not fit |
+| `--threads` | `N` | physical cores | OpenMP threads. On Linux the default is the physical core count rather than OpenMP's one thread per logical CPU, which is slower here on SMT parts. `OMP_NUM_THREADS`, if set, is respected |
 | `--ultra-low-memory` | none | off | stream exact embedding rows and lm_head chunks; full recompute also reuses one recurrent-state slot. Requires `--trunk` |
 
 The `ultra` preset selects `--ultra-low-memory` with a 2.5 GB trunk ring and a
@@ -423,7 +425,8 @@ shorthand. Order matters if you mix them: a later flag wins, so
 
 | flag | argument | default | |
 |---|---|---|---|
-| `--gen` | `N` | 8 | tokens to generate. Ceiling 4096; prompts may be up to 32768 tokens |
+| `--gen` | `N` | 8 | tokens to generate. Ceiling 4096; prompts may be up to 32768 tokens. `--gen 0 --incremental --save-state PATH` runs only the prefill and saves its exact state, to warm a prefix once and resume it many times |
+| `--stop-id` | `N` | off | stop as soon as the model emits id `N`; repeatable, up to 8. The released checkpoint declares two end ids that disagree (163586 in `config.json`, 163585 in `tokenizer_config.json`) and emits both, so pass both |
 | `--incremental` | none | off | carry the KV cache and the recurrent state between tokens instead of re-running the whole prefix |
 | `--tok` | `DIR` | none | directory holding `tiktoken.model` and `tokenizer_config.json` |
 
@@ -506,14 +509,16 @@ Scripts can rely on these.
 | `0` | success |
 | `1` | a tensor failed to bind, or a forward pass failed |
 | `2` | usage error, or a config that could not be read with confidence; the engine declines to guess |
+| `3` | the run finished but the `--out` file could not be written, so the results a harness reads are missing |
 | `4` | the run finished, but at least one routed expert failed to load, so the emitted ids are unsound. Distinct from `1` because the process otherwise succeeded, and it is the code that catches silent numerical corruption |
+| `5` | stopped early by Ctrl-C. The step in flight finished, and the state file, `--out` and the reports were all written, but the token list is shorter than asked for. A second Ctrl-C kills the process instead |
 
 ### Environment variables
 
 | variable | used by | |
 |---|---|---|
 | `HF_TOKEN` | `download-model.sh` | HuggingFace token, read from the environment and never echoed |
-| `OMP_NUM_THREADS` | the engine | thread count, defaulting to all cores |
+| `OMP_NUM_THREADS` | the engine | thread count. When neither this nor `--threads` is given, Linux defaults to the physical core count |
 | `K3_TOK_FILES` | tokenizer tools and CI | directory holding `tiktoken.model`, when it is not in a default location |
 | `K3_MODEL_DIR` | `tools/budget.py` | checkpoint directory, when not given as an argument |
 
@@ -647,6 +652,21 @@ hour in. Shorten the request, or drop `--incremental`, which carries no KV cache
 
 **Is the whole 1.56 TB needed?** For generation, yes. For development, no: `make test`
 needs nothing at all, and `--layers N` runs against partial shard sets.
+`scripts/download-model.sh <dest> --layers N` fetches only the shards those layers need,
+about 7 GB for `N=1` and 125 GB for `N=8`. That is for exercising the pipeline on a small
+disk; a layer prefix is not the model and does not produce its output.
+
+**Why no BLAS?** Because every matmul here has to give the same bits on every machine.
+The test suite checks the engine against a PyTorch reference exactly, not to a tolerance,
+and that only works if the order in which each dot product is summed is fixed and known.
+A BLAS library chooses its own blocking and reduction order, which can differ between
+versions, between vendors (OpenBLAS, MKL, Accelerate), and between thread counts on the
+same machine. Each of those answers is numerically correct and none of them matches the
+others bit for bit. The kernels in `src/core/k3_ops.c` exist to pin that order: the AVX2
+and NEON paths reproduce the scalar reduction exactly, and `test_ops` checks they do.
+It also keeps the build free of a dependency that installs differently on each
+platform, for kernels that are not the bottleneck anyway. A run is limited by how fast
+the trunk and the experts come off disk, not by arithmetic.
 
 **macOS, Windows, WSL?** Linux is the reference platform. macOS/arm64 builds with plain
 `make` (see the Makefile's platform block). Windows builds natively too, via MSYS2's
