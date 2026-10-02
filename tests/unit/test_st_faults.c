@@ -111,6 +111,41 @@ static int make_case(const char *src, const char *dst, const char *mutname,
     return found || !mutname ? 0 : -1;
 }
 
+/* Copy every .safetensors from src to dst EXCEPT `skip` (which must exist): the
+ * incomplete-download shape, one shard never arrived. */
+static int copy_shards(const char *src, const char *dst, const char *skip)
+{
+    mkdir(dst, 0755);
+    DIR *d = opendir(src);
+    if (!d) return -1;
+    struct dirent *e;
+    int skipped = 0;
+    while ((e = readdir(d)) != NULL) {
+        if (!endswith(e->d_name, ".safetensors")) continue;
+        if (skip && strcmp(e->d_name, skip) == 0) { skipped = 1; continue; }
+        char sp[1024], dp[1024];
+        if (snprintf(sp, sizeof sp, "%s/%s", src, e->d_name) >= (int)sizeof sp ||
+            snprintf(dp, sizeof dp, "%s/%s", dst, e->d_name) >= (int)sizeof dp) {
+            closedir(d); return -1;
+        }
+        size_t n = 0;
+        unsigned char *b = slurp(sp, &n);
+        if (!b) { closedir(d); return -1; }
+        const int rc = writeall(dp, b, n);
+        free(b);
+        if (rc != 0) { closedir(d); return -1; }
+    }
+    closedir(d);
+    return (skip && !skipped) ? -1 : 0;
+}
+
+static int write_text(const char *dir, const char *file, const char *text)
+{
+    char p[2048];
+    if (snprintf(p, sizeof p, "%s/%s", dir, file) >= (int)sizeof p) return -1;
+    return writeall(p, (const unsigned char *)text, strlen(text));
+}
+
 static uint64_t rdle64(const unsigned char *b)
 {
     uint64_t v = 0;
@@ -321,6 +356,122 @@ int main(int argc, char **argv)
              "\"b\":{\"dtype\":\"F32\",\"shape\":[4],\"data_offsets\":[16,32]}}", 32, &nt);
         ck(rc == 0 && nt == 3, "contiguous + zero-length tensor opens",
            rc == -99 ? "harness" : (rc != 0 ? "refused" : (nt != 3 ? "wrong tensor count" : "")));
+    }
+
+    /* ---- missing-tensor triage: a miss must say WHICH FILE, not just which name ----
+     * The fixture is model-0000{1,2}-of-00002, so the filenames declare two shards.
+     * Removing the second is exactly the incomplete download the download script warns
+     * "does not fail loudly". The reader must still open the subset, count 1 of 2, and
+     * explain the first miss by naming the absent file; with an index it must name the
+     * file the index maps the tensor to, and tell a never-existed name apart from an
+     * absent shard. */
+    static const char SHARD2[] = "model-00002-of-00002.safetensors";
+    static const char SHARD1[] = "model-00001-of-00002.safetensors";
+
+    /* M5: one shard absent, no index: the filenames name the file. */
+    {
+        char d[1024], why[1024] = "";
+        snprintf(d, sizeof d, "%s/m5", work);
+        K3St s; memset(&s, 0, sizeof s);
+        const int ok = copy_shards(fix, d, SHARD2) == 0 && k3_st_open(&s, d) == 0;
+        const int absent = ok && k3_st_find(&s, "second.shard.f32") == NULL;
+        const int kind = ok ? (int)k3_st_explain_missing(&s, "second.shard.f32", why, sizeof why) : -1;
+        ck(ok && s.declared == 2 && s.numbered == 1,
+           "1 of 2 declared shards opens, counted", "");
+        ck(absent && kind == K3_ST_MISS_SHARD_ABSENT && strstr(why, SHARD2) != NULL
+           && strstr(why, "declare 2 shards and 1 are here") != NULL,
+           "miss names the absent shard from the filenames", why);
+        ck(ok && k3_st_find(&s, "plain.f32.2d") != NULL,
+           "tensors of the present shard still resolve", "");
+        if (ok) k3_st_close(&s);
+    }
+
+    /* M6: one shard absent, and an index that maps the name to it. */
+    {
+        char d[1024], why[1024] = "";
+        snprintf(d, sizeof d, "%s/m6", work);
+        K3St s; memset(&s, 0, sizeof s);
+        const int ok = copy_shards(fix, d, SHARD2) == 0
+            && write_text(d, "model.safetensors.index.json",
+                          "{\"metadata\":{\"total_size\":1},\"weight_map\":{"
+                          "\"second.shard.f32\":\"model-00002-of-00002.safetensors\","
+                          "\"plain.f32.2d\":\"model-00001-of-00002.safetensors\"}}\n") == 0
+            && k3_st_open(&s, d) == 0;
+        const int kind = ok ? (int)k3_st_explain_missing(&s, "second.shard.f32", why, sizeof why) : -1;
+        ck(ok && kind == K3_ST_MISS_SHARD_ABSENT
+           && strstr(why, "index.json puts it in model-00002-of-00002.safetensors") != NULL,
+           "index names the absent shard for the miss", why);
+        if (ok) k3_st_close(&s);
+    }
+
+    /* M7: every shard present; the index maps a name to a shard that lacks it. */
+    {
+        char d[1024], why[1024] = "";
+        snprintf(d, sizeof d, "%s/m7", work);
+        K3St s; memset(&s, 0, sizeof s);
+        const int ok = copy_shards(fix, d, NULL) == 0
+            && write_text(d, "model.safetensors.index.json",
+                          "{\"weight_map\":{\"ghost.tensor\":\"model-00001-of-00002.safetensors\"}}") == 0
+            && k3_st_open(&s, d) == 0;
+        const int kind = ok ? (int)k3_st_explain_missing(&s, "ghost.tensor", why, sizeof why) : -1;
+        ck(ok && kind == K3_ST_MISS_SHARD_MISMATCH && strstr(why, SHARD1) != NULL
+           && strstr(why, "does not declare it") != NULL,
+           "index names a present shard that lacks the tensor", why);
+        if (ok) k3_st_close(&s);
+    }
+
+    /* M8: every shard present; the index does not list the name at all. */
+    {
+        char d[1024], why[1024] = "";
+        snprintf(d, sizeof d, "%s/m8", work);
+        K3St s; memset(&s, 0, sizeof s);
+        const int ok = copy_shards(fix, d, NULL) == 0
+            && write_text(d, "model.safetensors.index.json",
+                          "{\"weight_map\":{\"plain.f32.2d\":\"model-00001-of-00002.safetensors\"}}") == 0
+            && k3_st_open(&s, d) == 0;
+        const int kind = ok ? (int)k3_st_explain_missing(&s, "ghost.tensor", why, sizeof why) : -1;
+        ck(ok && kind == K3_ST_MISS_NOT_IN_CHECKPOINT && strstr(why, "does not list it") != NULL,
+           "index says the checkpoint never had the name", why);
+        if (ok) k3_st_close(&s);
+    }
+
+    /* M9: every shard present, no index: complete by the filenames, so never existed. */
+    {
+        char d[1024], why[1024] = "";
+        snprintf(d, sizeof d, "%s/m9", work);
+        K3St s; memset(&s, 0, sizeof s);
+        const int ok = copy_shards(fix, d, NULL) == 0 && k3_st_open(&s, d) == 0;
+        const int kind = ok ? (int)k3_st_explain_missing(&s, "ghost.tensor", why, sizeof why) : -1;
+        ck(ok && s.declared == 2 && s.numbered == 2 && kind == K3_ST_MISS_NOT_IN_CHECKPOINT
+           && strstr(why, "2 of 2 declared shards are here") != NULL,
+           "complete shard set: the name never existed", why);
+        if (ok) k3_st_close(&s);
+    }
+
+    /* M10: the released checkpoint names its files model-00001-of-000096.safetensors,
+     * five digits then six. Padding the missing name with the index's width alone gave
+     * model-00002-of-00003, a file that does not exist anywhere, so a user told to fetch
+     * it would get a 404. One fixture shard is published here under that naming scheme,
+     * declaring three, and the missing files must be named exactly. */
+    {
+        char d[1024], src[1024], dst[1100], why[1024] = "";
+        int ok = snprintf(d, sizeof d, "%s/m10", work) < (int)sizeof d
+              && snprintf(src, sizeof src, "%s/%s", fix, SHARD1) < (int)sizeof src
+              && snprintf(dst, sizeof dst, "%s/model-00001-of-000003.safetensors", d)
+                     < (int)sizeof dst;
+        mkdir(d, 0755);
+        size_t n = 0;
+        unsigned char *b = ok ? slurp(src, &n) : NULL;
+        ok = ok && b && writeall(dst, b, n) == 0;
+        free(b);
+        K3St s; memset(&s, 0, sizeof s);
+        ok = ok && k3_st_open(&s, d) == 0;
+        const int kind = ok ? (int)k3_st_explain_missing(&s, "ghost.tensor", why, sizeof why) : -1;
+        ck(ok && s.declared == 3 && s.numbered == 1 && kind == K3_ST_MISS_SHARD_ABSENT
+           && strstr(why, "model-00002-of-000003.safetensors") != NULL
+           && strstr(why, "model-00003-of-000003.safetensors") != NULL,
+           "5+6 digit names: the missing files are named as they exist", why);
+        if (ok) k3_st_close(&s);
     }
 
     printf("\n%s\n", g_fail ? "ST-FAULT TESTS FAILED" : "ST-FAULT TESTS PASSED");
