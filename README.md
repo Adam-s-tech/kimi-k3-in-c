@@ -599,6 +599,9 @@ Two things worth knowing before you pick:
 
 - **`max` is not faster than `server`** in these measurements. The extra 96 GB buys nothing
   outside the noise floor.
+- **A preset needs a little more free memory than its peak RSS.** The engine refuses any
+  plan above 95% of available memory, to leave room for everything outside the plan, so
+  `server` at about 128 GB needs roughly 135 GB available, not 128.
 - **Give the trunk memory before the expert cache.** At a fixed 128 GB budget that was
   worth 1.69×. [Allocation beats capacity](#allocation-beats-capacity) has the data.
 
