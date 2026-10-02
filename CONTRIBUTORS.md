@@ -55,13 +55,16 @@ record.
   the XTML chat REPL forward with the tokenizer bundle dropped, `--no-think` and
   `--thinking-effort`, and the Windows portability fixes it needed (`getline`, `fsync`,
   and a `rename` that actually replaces an existing file); found and fixed the missing
-  OpenMP link on the CMake Apple/libomp path; largest-first trunk pinning, the
-  `--trunk-ring` flag, and two prefetcher re-read bugs found by instrumentation rather
-  than by inspection; Ctrl-C that stops at a safe point and still writes everything; a
+  OpenMP link on the CMake Apple/libomp path; carried Deobot2's trunk pinning and
+  prefetcher work through review, with the synthetic trunk test adapted to it; Ctrl-C
+  that stops at a safe point and still writes everything; a
   checksummed state file published by atomic rename; chat turns that reuse the previous
   turn's state behind a bit-exact gate; available memory that is real on macOS and
   capped by commit headroom on Windows; missing-shard diagnostics that name the file; and
   safetensors span checks validated against every shard of the released checkpoint.
+- **[Deobot2](https://github.com/Deobot2)** -- largest-first trunk pinning, the
+  `--trunk-ring` flag, and two prefetcher re-read bugs found by instrumentation rather
+  than by inspection.
 - **[Blake Evans](https://github.com/BlakeEvans22)** -- the original K3 XTML chat core
   and REPL, reproducing the checkpoint's own chat format so the engine answers a
   chat-shaped prompt instead of completing it.
