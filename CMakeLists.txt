@@ -160,6 +160,9 @@ target_include_directories(test_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cl
 target_link_libraries(test_chat PRIVATE k3_chat)
 k3_add_test(test_sampler tests/unit/test_sampler.c)
 target_link_libraries(test_sampler PRIVATE k3_chat)
+k3_add_test(test_prefix tests/unit/test_prefix.c)
+# k3_prefix.h lives with the chat code; the test needs only that include directory.
+target_include_directories(test_prefix PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/chat)
 k3_add_test(scale_test  tests/unit/scale_test.c)
 k3_add_test(test_trunk  tests/unit/test_trunk.c)
 k3_add_test(k3_model    tests/unit/k3_model.c)
@@ -200,6 +203,7 @@ add_test(NAME shard_faults COMMAND test_st_faults ${FIX}/st ${CMAKE_CURRENT_BINA
 add_test(NAME json_refusals COMMAND test_json)
 add_test(NAME sampler COMMAND test_sampler)
 add_test(NAME state_file COMMAND test_state ${CMAKE_CURRENT_BINARY_DIR}/state)
+add_test(NAME chat_prefix COMMAND test_prefix)
 add_test(NAME model_stream COMMAND test_model_stream ${FIX}/st)
 add_test(NAME ultra_cli_contract
          COMMAND ${CMAKE_COMMAND} -DCLI=$<TARGET_FILE:k3_cli>

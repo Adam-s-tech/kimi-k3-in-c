@@ -156,7 +156,7 @@ CHAT_SRC   := src/chat/k3_chat.c src/chat/k3_sampler.c
 CLI_BIN    := $(BIN)/k3
 
 # Tests that need no checkpoint. These run in CI on every push.
-UNIT_TESTS := test_ops test_cache test_st test_model_stream test_cfg test_tok test_chat test_sampler scale_test k3_model test_trunk test_st_faults test_state test_cancel test_json
+UNIT_TESTS := test_ops test_cache test_st test_model_stream test_cfg test_tok test_chat test_sampler scale_test k3_model test_trunk test_st_faults test_prefix test_state test_cancel test_json
 # Tests that need real shards. Built and run by `make test-all` with SHARD_DIR set;
 # see the weights-test target below.
 WEIGHT_TESTS := test_expert test_real_layer
@@ -227,6 +227,10 @@ $(BIN)/test_cancel: tests/unit/test_cancel.c src/cli/k3_cancel.h | $(BIN)
 # The state file format is plain stdio over arrays; no OpenMP, no platform calls.
 $(BIN)/test_state: tests/unit/test_state.c src/cli/k3_state.c | $(BIN)
 	$(CC) -O2 -std=gnu99 $(WARN) $(INCLUDES) -Isrc/cli $^ -o $@ -lm
+# The prefix record is a header of pure C99 with no engine dependency; the engine-level
+# equivalence it relies on is GATE 3b of k3_model.
+$(BIN)/test_prefix: tests/unit/test_prefix.c src/chat/k3_prefix.h | $(BIN)
+	$(CC) -O2 -std=c99 $(WARN) -Wno-unused-function $(INCLUDES) $< -o $@
 
 # Allocates at REAL model widths (a ~1.8 GB KDA layer), so it needs the optimised build
 # rather than the portable C99 one the tokenizer and config tests use.
@@ -316,6 +320,7 @@ test: $(CLI_BIN) $(TEST_BINS)
 	      echo "           which ships with the checkpoint. Run: make test TOK_FILES=/path/to/k3model"; \
 	  fi
 	@echo "== sampler ==";          ./$(BIN)/test_sampler
+	@echo "== chat prefix record =="; ./$(BIN)/test_prefix
 	@echo "== real dimensions ==";   ./$(BIN)/scale_test
 	@echo "== trunk streaming ==";   ./$(BIN)/test_trunk
 	@echo "== full-model oracle =="; ./$(BIN)/k3_model $(FIXTURES)
