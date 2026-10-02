@@ -116,7 +116,7 @@ if(K3_OPENMP_TARGET)
 endif()
 
 # ------------------------------------------------------------------------------ cli --
-add_executable(k3_cli src/cli/k3_run.c)
+add_executable(k3_cli src/cli/k3_run.c src/cli/k3_state.c)
 set_target_properties(k3_cli PROPERTIES OUTPUT_NAME k3)
 
 # Chat is deliberately separate from the inference library: it is CLI policy and
@@ -154,6 +154,9 @@ k3_add_test(test_st_faults tests/unit/test_st_faults.c)
 k3_add_test(test_json tests/unit/test_json.c)
 k3_add_test(test_cancel tests/unit/test_cancel.c)
 target_include_directories(test_cancel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
+k3_add_test(test_state  tests/unit/test_state.c)
+target_sources(test_state PRIVATE src/cli/k3_state.c)
+target_include_directories(test_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
 target_link_libraries(test_chat PRIVATE k3_chat)
 k3_add_test(test_sampler tests/unit/test_sampler.c)
 target_link_libraries(test_sampler PRIVATE k3_chat)
@@ -196,6 +199,7 @@ add_test(NAME safetensors COMMAND test_st   ${FIX}/st ${CMAKE_CURRENT_BINARY_DIR
 add_test(NAME shard_faults COMMAND test_st_faults ${FIX}/st ${CMAKE_CURRENT_BINARY_DIR}/stfault)
 add_test(NAME json_refusals COMMAND test_json)
 add_test(NAME sampler COMMAND test_sampler)
+add_test(NAME state_file COMMAND test_state ${CMAKE_CURRENT_BINARY_DIR}/state)
 add_test(NAME model_stream COMMAND test_model_stream ${FIX}/st)
 add_test(NAME ultra_cli_contract
          COMMAND ${CMAKE_COMMAND} -DCLI=$<TARGET_FILE:k3_cli>
